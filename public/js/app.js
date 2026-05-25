@@ -564,7 +564,7 @@
     scheduleRedraw();
   }
 
-  function onDrawMove(e) {
+  /*function onDrawMove(e) {
     const p = getCanvasPoint(e);
     
     // 1. 내가 그리는 사람이든 맞추는 사람이든 상관없이 내 화면 안에서의 이동 좌표는 상시 동기화
@@ -596,6 +596,59 @@
       cursorPos = p;
       if (room && room.mode === 'telescope' && !canDraw) {
         applyMasks(); // 맞추는 사람의 실시간 시야 이동 렌더링
+      }
+    }
+  });*/
+
+  // --- [수정 코드] 변수 선언부 근처에 선언하거나 함수 바로 위에 추가하세요 ---
+  let lastEmitTime = 0; // 마지막으로 서버에 패킷을 보낸 시간 기록
+  const EMIT_THROTTLE_MS = 45; // ★ 전송 간격을 45ms로 제한 (초당 패킷 수를 20개 안팎으로 제한)
+
+  function onDrawMove(e) {
+    const p = getCanvasPoint(e);
+    
+    // 1. 내 화면 안에서의 이동 좌표는 상시 동기화
+    cursorPos = p;
+
+    // 2. 만약 망원경 모드라면 마우스를 클릭하지 않은 단순 오버 상태에서도 시야를 즉각 갱신
+    if (room && room.mode === 'telescope') {
+      applyMasks();
+    }
+
+    if (!isDrawing || !canDraw || revealed) return;
+    if (!pointInDrawZone(p.x, p.y)) { endStroke(); return; }
+
+    pendingPoints.push({ x: p.x, y: p.y });
+
+    const local = paths.find((pth) => pth.pathId === currentPathId && pth.playerId === myId);
+    if (local) {
+      local.points.push(p);
+    }
+
+    // --- [핵심 수정] 초고속 연타 방지 쓰로틀링 타임 체크 ---
+    const now = Date.now();
+    if (now - lastEmitTime >= EMIT_THROTTLE_MS) {
+      flushDrawEmit(true); // 강제로 버퍼를 비워 서버로 전송
+      lastEmitTime = now;
+    }
+    
+    scheduleRedraw();
+  }
+
+  // --- [수정 코드] 마우스 오버 시 시야 연동 최적화 ---
+  let lastCursorEmit = 0;
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDrawing) {
+      const p = getCanvasPoint(e);
+      cursorPos = p;
+      
+      if (room && room.mode === 'telescope' && !canDraw) {
+        // 그냥 움직일 때도 50ms마다 한 번씩만 마스크를 다시 그리도록 최적화
+        const now = Date.now();
+        if (now - lastCursorEmit > 50) {
+          applyMasks(); 
+          lastCursorEmit = now;
+        }
       }
     }
   });

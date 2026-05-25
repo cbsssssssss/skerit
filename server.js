@@ -223,10 +223,17 @@ function checkCoopWin(room) {
   if (guessers.every((p) => p.guessed)) endRound(room, 'allGuessed');
 }
 
-function checkNormalWin(room, guesserId) {
-  const drawer = room.players.find((p) => p.isDrawer);
-  if (!drawer || guesserId === drawer.id) return;
-  endRound(room, 'correct');
+// --- [이 함수를 찾아서 아래 내용으로 덮어씌우세요] ---
+function checkNormalWin(room) {
+  // 맞추는 사람(출제자 제외)들만 필터링
+  const guessers = room.players.filter((p) => !p.isDrawer);
+  if (guessers.length === 0) return;
+
+  // 맞추는 사람들이 전부 'guessed === true' 상태인지 확인
+  const allGuessed = guessers.every((p) => p.guessed);
+  if (allGuessed) {
+    endRound(room, 'allGuessed');
+  }
 }
 
 function transferHost(room, leavingId) {
@@ -429,47 +436,84 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('clearPlayer', { playerId: socket.id });
   });
 
+  // --- [socket.on('guess', ...) 통째로 이 코드로 교체하시면 가장 안전합니다] ---
   socket.on('guess', ({ text }) => {
     const room = getRoomBySocket(socket.id);
     if (!room || room.state !== 'playing') return;
 
     const player = room.players.find((p) => p.id === socket.id);
     if (!player) return;
-    if (player.isDrawer) return;
+    if (player.isDrawer) return; // 출제자는 정답 입력 불가
+    if (player.guessed) return;  // 이미 맞춘 사람은 중복 처리 방지
 
     const guess = (text || '').trim();
     if (!guess) return;
 
-    /*io.to(room.code).emit('chatMessage', {
-      name: player.name,
-      text: guess,
-      type: 'guess'
-    });*/
+    const normalizedGuess = guess.replace(/\s/g, '').toLowerCase();
+    const normalizedWord = (room.word || '').replace(/\s/g, '').toLowerCase();
 
-    const normalizedGuess = guess.replace(/\s/g, '');
-    const normalizedWord = (room.word || '').replace(/\s/g, '');
-    if (normalizedGuess !== normalizedWord) return;
+    // 정답을 맞춘 경우
+    if (normalizedGuess === normalizedWord) {
+      player.guessed = true; // ★ 이제 일반 모드에서도 맞춘 상태를 기록합니다.
 
-    if (room.mode === 'coop') {
-      if (player.guessed) return;
-      player.guessed = true;
-      player.score = (player.score || 0) + 10;
-      io.to(room.code).emit('playerGuessed', {
-        playerId: socket.id,
-        name: player.name,
-        room: roomPayload(room)
-      });
-      checkCoopWin(room);
+      if (room.mode === 'coop') {
+        player.score = (player.score || 0) + 10;
+
+        socket.emit('chatMessage', {
+          name: 'System',
+          text: `정답입니다! 👏`,
+          type: 'system'
+        });
+
+        io.to(room.code).emit('chatMessage', {
+          name: 'System',
+          text: `${player.name} 님이 정답을 맞추셨습니다! 🎉`,
+          type: 'system'
+        });
+
+        io.to(room.code).emit('playerGuessed', {
+          playerId: socket.id,
+          name: player.name,
+          room: roomPayload(room)
+        });
+        checkCoopWin(room);
+      } else {
+        // [일반 / 망원경 모드]
+        player.score = (player.score || 0) + 10;
+        const drawer = room.players.find((p) => p.isDrawer);
+        if (drawer) drawer.score = (drawer.score || 0) + 5;
+
+        // 맞춘 본인에게만 비밀 피드백
+        socket.emit('chatMessage', {
+          name: 'System',
+          text: `정답입니다! 정답은 [${room.word}] 였습니다.`,
+          type: 'system'
+        });
+
+        // 방 전체에는 단어를 가리고 알림
+        io.to(room.code).emit('chatMessage', {
+          name: 'System',
+          text: `${player.name} 님이 정답을 맞추셨습니다! 🎉`,
+          type: 'system'
+        });
+
+        // 점수판이나 플레이어 상태 UI 갱신을 위해 클라이언트에 알림 전송
+        io.to(room.code).emit('correctGuess', {
+          playerId: socket.id,
+          name: player.name,
+          room: roomPayload(room)
+        });
+        
+        // ★ 모두 맞췄는지 검사 (끝나지 않고 다음 사람 기회 유지!)
+        checkNormalWin(room);
+      }
     } else {
-      player.score = (player.score || 0) + 10;
-      const drawer = room.players.find((p) => p.isDrawer);
-      if (drawer) drawer.score = (drawer.score || 0) + 5;
-      io.to(room.code).emit('correctGuess', {
-        playerId: socket.id,
+      // 오답인 경우 틀린 단어를 일반 채팅으로 방 전체에 전송
+      io.to(room.code).emit('chatMessage', {
         name: player.name,
-        room: roomPayload(room)
+        text: guess,
+        type: 'chat'
       });
-      checkNormalWin(room, socket.id);
     }
   });
 
@@ -480,12 +524,25 @@ io.on('connection', (socket) => {
     if (!player) return;
     const msg = (text || '').trim().slice(0, 200);
     if (!msg) return;
+
+    // 출제자가 대화창에 정답을 스포일러하는 것을 차단하는 안전장치
+    if (player.isDrawer && room.word && msg.replace(/\s/g, '').toLowerCase().includes(room.word.replace(/\s/g, '').toLowerCase())) {
+      socket.emit('chatMessage', {
+        name: 'System',
+        text: '출제자는 정답을 채팅창에 직접 언급할 수 없습니다!',
+        type: 'system'
+      });
+      return;
+    }
+
+    // 일반 수다는 모든 사람에게 전송
     io.to(room.code).emit('chatMessage', {
       name: player.name,
       text: msg,
       type: 'chat'
     });
   });
+  // --- [여기까지 덮어씌우세요] ---
 
   socket.on('nextRound', () => {
     const room = getRoomBySocket(socket.id);
