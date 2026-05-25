@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skerit! — 캐치마인드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gamja+Flower&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="paper-bg"></div>
+
+  <div id="app">
+    <section id="screen-lobby" class="screen active">
+      <div class="home-layout">
+        <div class="home-left hand-box">
+          <h1 class="logo hand-title">Skerit!</h1>
+          <p class="tagline">실시간 멀티 캐치마인드</p>
+          <label class="label-hand" for="player-name">닉네임</label>
+          <input id="player-name" class="input-hand" type="text" maxlength="12" placeholder="이름을 입력하세요" autocomplete="nickname">
+          <div class="mode-picker">
+            <p class="label-hand">게임 모드</p>
+            <div class="mode-btns">
+              <button type="button" class="btn-chip mode-btn active" data-mode="normal">일반</button>
+              <button type="button" class="btn-chip mode-btn" data-mode="telescope" title="망원경 모드">🔭 망원경</button>
+              <button type="button" class="btn-chip mode-btn" data-mode="coop">협동 🤝</button>
+            </div>
+            <p class="mode-hint" id="mode-hint">한 명이 그리고 나머지가 맞춰요!</p>
+          </div>
+          <button type="button" id="btn-create" class="btn-hand btn-primary wiggle-hover">방 생성하기</button>
+          <button type="button" id="btn-join" class="btn-hand btn-secondary wiggle-hover">방 참여하기</button>
+          <input id="room-code" class="input-hand code-input" type="text" inputmode="numeric" maxlength="6" placeholder="숫자 6자리 입력" autocomplete="off">
+        </div>
+        <div class="home-right hand-box">
+          <p class="demo-label">그림이 막 그려졌다가 사라져요 ✨</p>
+          <div class="demo-canvas-wrap">
+            <canvas id="demo-canvas" width="640" height="480"></canvas>
+          </div>
+        </div>
+      </div>
+      <p id="lobby-error" class="error-msg hidden"></p>
+    </section>
+
+    <section id="screen-waiting" class="screen">
+      <div class="game-layout">
+        <aside class="game-sidebar hand-box">
+          <h3 class="sidebar-title">플레이어</h3>
+          <div class="player-list-scroll">
+            <ul id="player-list" class="player-list"></ul>
+          </div>
+          <div class="waiting-code-block">
+            <span class="label-hand">방 코드</span>
+            <div class="code-row">
+              <span id="display-code" class="room-code-digits">000000</span>
+              <button type="button" id="btn-copy-code" class="btn-chip btn-small wiggle-hover">복사</button>
+            </div>
+          </div>
+          <button type="button" id="btn-leave-room" class="btn-hand btn-leave wiggle-hover">대기실 나가기</button>
+
+          <h3 class="sidebar-title">채팅</h3>
+          <div id="waiting-chat-log" class="chat-log"></div>
+          <div class="chat-input-row">
+            <input id="waiting-chat-input" class="input-hand" type="text" maxlength="200" placeholder="채팅 입력…">
+            <button type="button" id="btn-waiting-send" class="btn-chip btn-small wiggle-hover">전송</button>
+          </div>
+        </aside>
+
+        <div class="game-canvas-column">
+          <div class="canvas-stage hand-box">
+            <div class="canvas-stack waiting-stage" id="waiting-stage">
+              <canvas id="waiting-canvas" width="800" height="500"></canvas>
+              
+              <div class="canvas-overlay-panel">
+                <p class="overlay-title hand-title">대기실</p>
+                <p class="mode-badge" id="waiting-mode">일반 모드</p>
+                
+                <div id="host-controls" class="overlay-host hidden">
+                  <p class="overlay-label">게임 모드</p>
+                  <div class="overlay-btn-row">
+                    <button type="button" class="btn-chip mode-btn-host" data-mode="normal">일반</button>
+                    <button type="button" class="btn-chip mode-btn-host" data-mode="telescope" title="망원경 모드">🔭</button>
+                    <button type="button" class="btn-chip mode-btn-host" data-mode="coop">협동</button>
+                  </div>
+                  
+                  <div id="coop-drawer-setting" class="coop-setting hidden">
+                    <p class="overlay-label">그릴 인원</p>
+                    <div class="overlay-btn-row">
+                      <button type="button" class="btn-chip coop-count-btn" data-count="2">2명</button>
+                      <button type="button" class="btn-chip coop-count-btn active" data-count="3">3명</button>
+                      <button type="button" class="btn-chip coop-count-btn" data-count="4">4명</button>
+                    </div>
+                  </div>
+
+                  <div id="keyword-setting" class="keyword-setting text-center">
+                    <div class="keyword-header">
+                      <span class="label-hand">🔑 제시어 풀 설정</span>
+                      <button type="button" id="btn-toggle-keyword-size" class="btn-link btn-small">↕ 넓게 보기</button>
+                    </div>
+                    <textarea id="custom-keywords" class="input-hand keyword-textarea" rows="2" placeholder="예: 치즈냥이, 우주선, 떡볶이 (쉼표로 구분)"></textarea>
+                    
+                    <div class="overlay-btn-row">
+                      <button type="button" class="btn-chip word-source-btn active" data-source="mixed">기본 + 커스텀 랜덤</button>
+                      <button type="button" class="btn-chip word-source-btn" data-source="customOnly">커스텀 단어만</button>
+                    </div>
+                  </div>
+
+                  <button type="button" id="btn-start" class="btn-hand btn-start-big wiggle-hover">게임 시작!</button>
+                </div>
+                <p id="waiting-hint" class="waiting-hint">방장이 게임을 시작할 때까지…</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-game" class="screen">
+      <div class="game-layout">
+        <aside class="game-sidebar hand-box">
+          <h3 class="sidebar-title">플레이어</h3>
+          <div class="player-list-scroll">
+            <ul id="game-player-list" class="player-list"></ul>
+          </div>
+          <h3 class="sidebar-title">채팅</h3>
+          <div id="chat-log" class="chat-log"></div>
+          <div class="chat-input-row">
+            <input id="chat-input" class="input-hand" type="text" maxlength="200" placeholder="채팅 또는 정답 입력…">
+            <button type="button" id="btn-send" class="btn-chip btn-small wiggle-hover">전송</button>
+          </div>
+        </aside>
+
+        <div class="game-canvas-column">
+          <div class="game-top hand-box">
+            <div class="game-info">
+              <span id="game-mode-label" class="mode-badge">일반</span>
+              <span id="role-badge" class="role-badge hidden"></span>
+              <span id="timer" class="timer">1:30</span>
+            </div>
+            <div id="word-banner" class="word-banner hidden">
+              <span>제시어:</span>
+              <strong id="secret-word">???</strong>
+            </div>
+            <button type="button" id="btn-clear" class="btn-hand btn-small wiggle-hover hidden">지우기</button>
+            <div id="color-bar" class="color-bar"></div>
+          </div>
+
+          <div class="canvas-stage hand-box">
+            <div class="canvas-stack" id="canvas-stack">
+              <div id="role-splash" class="role-splash hidden" aria-live="polite"></div>
+              
+              <div id="selection-overlay" class="selection-overlay hidden">
+                <div id="selection-drawer-view" class="hidden text-center">
+                  <h3 class="hand-title">어떤 그림을 그릴까요? (주제 선택)</h3>
+                  <p id="selection-timer-display" class="timer-big">10</p>
+                  <div class="word-cards-wrap" id="word-cards-wrap"></div>
+                </div>
+                <div id="selection-guesser-view" class="hidden text-center">
+                  <h3 class="hand-title">그리는 사람이 제시어를 고르고 있습니다...</h3>
+                  <div class="loader-dots"></div>
+                </div>
+              </div>
+
+              <canvas id="game-canvas" width="800" height="500"></canvas>
+              <canvas id="mask-canvas" width="800" height="500"></canvas>
+              <canvas id="overlay-canvas" width="800" height="500"></canvas>
+              <canvas id="cut-canvas" width="800" height="500"></canvas>
+            </div>
+          </div>
+
+          <div id="reveal-panel" class="reveal-panel hidden">
+            <p class="reveal-text">🎉 정답: <strong id="reveal-word"></strong></p>
+            <div id="host-round-controls" class="hidden">
+              <button type="button" id="btn-next-round" class="btn-hand btn-primary wiggle-hover">다음 라운드</button>
+              <button type="button" id="btn-lobby" class="btn-hand btn-secondary wiggle-hover">대기실로</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/zones-client.js"></script>
+  <script src="/js/draw-engine.js"></script>
+  <script src="/js/scissors-cut.js"></script>
+  <script src="/js/home-demo.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
