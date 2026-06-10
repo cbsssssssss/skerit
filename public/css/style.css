@@ -659,3 +659,55 @@ body {
   margin: 0;
   font-family: 'Jua', sans-serif;
 }
+
+/* ── 모바일 환경(방장 시작 버튼 짤림 현상) 레이아웃 최적화 ── */
+@media (max-width: 600px) {
+  /* 대기실 내부 패널이 세로로 꽉 차서 아래 버튼이 밀리는 현상 방지 */
+  .canvas-overlay-panel {
+    position: relative !important;
+    inset: auto !important;
+    backdrop-filter: none !important;
+    background: #fffef8 !important;
+    padding: 0.75rem !important;
+    gap: 0.4rem !important;
+  }
+
+  /* 모바일 대기실의 배경 캔버스 스택 높이를 유연하게 조절 */
+  .canvas-stack.waiting-stage {
+    position: relative !important;
+    height: auto !important;
+    min-height: initial !important;
+    aspect-ratio: auto !important;
+    background: #fffef8 !important;
+  }
+
+  /* 가상 배경 캔버스는 모바일 대기실에서 숨김 처리 (구조 겹침 방지) */
+  #waiting-canvas {
+    display: none !important;
+  }
+
+  /* 폰트 크기 및 여백 세부 다이어트 */
+  .overlay-title {
+    font-size: 1.5rem !important;
+  }
+
+  .keyword-setting {
+    padding: 0.4rem !important;
+    margin: 0.15rem 0 !important;
+  }
+
+  /* 입력창 및 텍스트박스 높이 축소 */
+  .keyword-textarea {
+    min-height: 42px !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* "게임 시작!" 버튼이 최하단에 무조건 잘 보이고 누르기 편하게 확장 */
+  .btn-start-big {
+    font-size: 1.1rem !important;
+    padding: 0.55rem 2.5rem !important;
+    margin-top: 0.5rem !important;
+    width: 100%; /* 손가락으로 누르기 편하게 가로 꽉 채움 */
+    box-shadow: 3px 3px 0 var(--ink) !important;
+  }
+}
